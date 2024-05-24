@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import csv
 import coloredlogs
 import json
 import logging
@@ -92,10 +93,10 @@ def check_version(installed_version):
         log.info('pytr is up to date')
 
 
-def export_transactions(input_path, output_path, lang='auto'):
+def export_transactions(input_path, output_path, lang='auto', detail=False):
     '''
     Create a CSV with the deposits and removals ready for importing into Portfolio Performance
-    The CSV headers for PP are language dependend
+    The CSV headers for PP are language dependent
 
     i18n source from Portfolio Performance:
     https://github.com/buchen/portfolio/blob/93b73cf69a00b1b7feb136110a51504bede737aa/name.abuchen.portfolio/src/name/abuchen/portfolio/messages_de.properties
@@ -211,45 +212,59 @@ def export_transactions(input_path, output_path, lang='auto'):
     # date, transaction, shares, amount, total, fee, isin, name
     log.info('Write deposit entries')
     with open(output_path, 'w', encoding='utf-8') as f:
-        # f.write('Datum;Typ;Stück;amount;Wert;Gebühren;ISIN;name\n')
-        csv_fmt = '{date};{type};{value}\n'
-        header = csv_fmt.format(date=i18n['date'][lang], type=i18n['type'][lang], value=i18n['value'][lang])
-        f.write(header)
+        if detail:
+            writer = csv.writer(f)
+            writer.writerow(["Date", "Description", "Value"])
+        else:
+            # f.write('Datum;Typ;Stück;amount;Wert;Gebühren;ISIN;name\n')
+            csv_fmt = '{date};{type};{value}\n'
+            header = csv_fmt.format(date=i18n['date'][lang], type=i18n['type'][lang], value=i18n['value'][lang])
+            f.write(header)
 
         for event in timeline:
+            if 'storniert' in event.get('body', ''):
+                log.debug("skip cancelled: %s", event)
+                continue
+
             dateTime = datetime.fromisoformat(event['timestamp'])
             date = dateTime.strftime('%Y-%m-%d')
-
-            title = event['title']
-            try:
-                body = event['body']
-            except KeyError:
-                body = ''
-
-            if 'storniert' in body:
-                continue
 
             try:
                 decdot = i18n['decimal dot'][lang]
                 amount = str(abs(event['amount']['value'])).replace('.', decdot)
             except (KeyError, TypeError):
+                log.debug("skip (no amount): %s", event)
                 continue
 
+            category = None
             # Cash in
             if event["eventType"] in ("PAYMENT_INBOUND", "PAYMENT_INBOUND_SEPA_DIRECT_DEBIT"):
-                f.write(csv_fmt.format(date=date, type=i18n['deposit'][lang], value=amount))
+                category = 'deposit'
             elif event["eventType"] == "PAYMENT_OUTBOUND":
-                f.write(csv_fmt.format(date=date, type=i18n['removal'][lang], value=amount))
+                category = 'removal'
             elif event["eventType"] == "INTEREST_PAYOUT_CREATED":
-                f.write(csv_fmt.format(date=date, type=i18n['interest'][lang], value=amount))
+                category = 'interest'
             # Dividend - Shares
-            elif title == 'Reinvestierung':
+            elif event['title'] == 'Reinvestierung':
                 # TODO: Implement reinvestment
-                log.warning('Detected reivestment, skipping... (not implemented yet)')
+                log.warning('Detected reivestment, skipping... (not implemented yet): %s', event)
+                continue
             elif event["eventType"] == "card_successful_transaction":
-                f.write(csv_fmt.format(date=date, type=i18n['card transaction'][lang], value=amount))
+                category = "card transaction"
 
-    log.info('Deposit creation finished!')
+            if detail:
+                amount = event['amount']['value']
+                parts = []
+                parts.append(event['title'])
+                if subtitle := event.get('subtitle'):
+                    parts.append(subtitle)
+                if category:
+                    parts.append(i18n[category][lang])
+                writer.writerow([date, ' | '.join(parts), amount])
+            elif category:
+                f.write(csv_fmt.format(date=date, type=i18n[category][lang], value=amount))
+
+    log.info('CSV creation finished!')
 
 
 class Timeline:
@@ -445,5 +460,7 @@ class Timeline:
                 json.dump(self.events_with_docs, f, ensure_ascii=False, indent=2)
 
             export_transactions(dl.output_path / 'events_with_documents.json', dl.output_path / 'account_transactions.csv')
+
+            export_transactions(dl.output_path / 'events_with_documents.json', dl.output_path / 'account_transactions_detail.csv', detail=True)
 
             dl.work_responses()

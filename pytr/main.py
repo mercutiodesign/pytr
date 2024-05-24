@@ -68,7 +68,7 @@ def get_main_parser():
     info = (
         'Download all pdf documents from the timeline and sort them into folders.'
         + ' Also export account transactions (account_transactions.csv)'
-        + ' and JSON files with all events (events_with_documents.json and other_events.json'
+        + ' and JSON files with all events (events_with_documents.json and other_events.json)'
     )
     parser_dl_docs = parser_cmd.add_parser(
         'dl_docs',
@@ -144,12 +144,13 @@ def get_main_parser():
         description=info,
     )
     parser_export_transactions.add_argument(
-        'input', help='Input path to JSON (use other_events.json from dl_docs)', metavar='INPUT', type=Path
+        'input', help='Input path to JSON (use events_with_documents.json from dl_docs)', metavar='INPUT', type=Path
     )
     parser_export_transactions.add_argument('output', help='Output path of CSV file', metavar='OUTPUT', type=Path)
     parser_export_transactions.add_argument(
         '-l', '--lang', help='Two letter language code or "auto" for system language', default='auto'
     )
+    parser_export_transactions.add_argument('-d', '--detail', help="Add detailed transaction information", action='store_true')
 
     info = 'Print shell tab completion'
     parser_completion = parser_cmd.add_parser(
@@ -222,7 +223,7 @@ def main():
         if args.output is not None:
             p.portfolio_to_csv(args.output)
     elif args.command == 'export_transactions':
-        export_transactions(args.input, args.output, args.lang)
+        export_transactions(args.input, args.output, lang=args.lang, detail=args.detail)
     elif args.version:
         installed_version = version('pytr')
         print(installed_version)
