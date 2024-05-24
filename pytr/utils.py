@@ -6,7 +6,7 @@ import json
 import logging
 import requests
 from datetime import datetime
-from locale import getdefaultlocale
+from locale import getlocale
 from packaging import version
 
 log_level = None
@@ -105,7 +105,7 @@ def export_transactions(input_path, output_path, lang='auto', detail=False):
     '''
     log = get_logger(__name__)
     if lang == 'auto':
-        locale = getdefaultlocale()[0]
+        locale = getlocale()[0]
         if locale is None:
             lang = 'en'
         else:
