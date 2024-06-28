@@ -226,7 +226,7 @@ def export_transactions(input_path, output_path, lang='auto', detail=False):
                 log.debug("skip cancelled: %s", event)
                 continue
 
-            dateTime = datetime.fromisoformat(event['timestamp'])
+            dateTime = datetime.fromisoformat(event['timestamp'][:19])
             date = dateTime.strftime('%Y-%m-%d')
 
             try:
@@ -325,7 +325,7 @@ class Timeline:
             self.num_timelines = 0
             await self.tr.timeline_activity_log()
         else:
-            timestamp = response['items'][-1]['timestamp']
+            timestamp = datetime.fromisoformat(response['items'][-1]['timestamp'][:19]).timestamp()
             self.num_timelines += 1
             # print(json.dumps(response))
             self.num_timeline_details += len(response['items'])
@@ -441,14 +441,14 @@ class Timeline:
                 for doc in section['data']:
                     try:
                         timestamp = datetime.strptime(doc['detail'], '%d.%m.%Y').timestamp() * 1000
-                    except ValueError:
+                    except (ValueError, KeyError):
                         timestamp = datetime.now().timestamp() * 1000
                     if max_age_timestamp == 0 or max_age_timestamp < timestamp:
                         # save all savingsplan documents in a subdirectory
                         title = f"{doc['title']} - {event['title']}"
                         if event['eventType'] in ["ACCOUNT_TRANSFER_INCOMING", "ACCOUNT_TRANSFER_OUTGOING"]:
                             title += f" - {event['subtitle']}"
-                        dl.dl_doc(doc, title, doc['detail'], subfolder)
+                        dl.dl_doc(doc, title, doc.get('detail'), subfolder)
 
         if self.received_detail == self.num_timeline_details:
             self.log.info('Received all details')
