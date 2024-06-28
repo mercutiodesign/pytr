@@ -222,7 +222,7 @@ def export_transactions(input_path, output_path, lang='auto', detail=False):
             f.write(header)
 
         for event in timeline:
-            if 'storniert' in event.get('body', ''):
+            if 'storniert' in event.get('body', '') or event.get("status") == "CANCELED":
                 log.debug("skip cancelled: %s", event)
                 continue
 
