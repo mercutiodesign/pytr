@@ -244,11 +244,6 @@ def export_transactions(input_path, output_path, lang='auto', detail=False):
                 category = 'removal'
             elif event["eventType"] == "INTEREST_PAYOUT_CREATED":
                 category = 'interest'
-            # Dividend - Shares
-            elif event['title'] == 'Reinvestierung':
-                # TODO: Implement reinvestment
-                log.warning('Detected reivestment, skipping... (not implemented yet): %s', event)
-                continue
             elif event["eventType"] == "card_successful_transaction":
                 category = "card transaction"
 
@@ -260,7 +255,11 @@ def export_transactions(input_path, output_path, lang='auto', detail=False):
                     parts.append(subtitle)
                 if category:
                     parts.append(i18n[category][lang])
+                if event["eventType"] == "benefits_saveback_execution":
+                    # generate incoming amount for saveback
+                    writer.writerow([date, ' | '.join(parts + ["Earned"]), -amount])
                 writer.writerow([date, ' | '.join(parts), amount])
+
             elif category:
                 f.write(csv_fmt.format(date=date, type=i18n[category][lang], value=amount))
 
