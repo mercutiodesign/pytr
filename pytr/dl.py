@@ -105,7 +105,7 @@ class DL:
         try:
             date = doc["detail"]
             iso_date = "-".join(date.split(".")[::-1])
-        except KeyError:
+        except (KeyError, AttributeError):
             if timestamp:
                 date = timestamp.strftime("%d.%m.%Y")
                 iso_date = timestamp.strftime("%Y-%m-%d")
