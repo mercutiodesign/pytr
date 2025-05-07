@@ -104,7 +104,7 @@ class DL:
 
         doc_id = doc["id"]
         iso_date = doc_date.strftime("%Y-%m-%d")
-        time = doc_date.strftime("%H:%M")
+        time = doc_date.strftime("%H-%M")
 
         if subfolder is not None:
             directory = self.output_path / subfolder
