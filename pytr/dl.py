@@ -79,30 +79,51 @@ event_subfolder_mapping = {
 }
 
 title_subfolder_mapping = {
+    "Aktien-Bonus": "Misc",
     "Basisinformationen": "Misc",
+    "Crypto Jahresaufstellung": "Misc",
+    "Eignungsprüfung": "Misc",
     "Jährlicher Steuerreport": "Misc",
     "Rechtliche Dokumente": "Misc",
-    "Ex-Post Kosteninformation": "Trades",
+    "Private Equity": "Private Equity",
     "Steuerkorrektur": "Steuerkorrekturen",
+    "Ex-Post Kosteninformation": "Trades",
     "Zinsen": "Zinsen",
 }
 
 subtitle_subfolder_mapping = {
-    "Erteilt": "Misc",
-    "Jährliche Hauptversammlung": "Misc",
+    "Aktiendividende": "Dividende",
     "Bardividende": "Dividende",
     "Cash oder Aktie": "Dividende",
     "Dividende Wahlweise": "Dividende",
+    "Aktienprämiendividende": "Misc",
+    "Aktiensplit": "Misc",
+    "Aufruf von Zwischenpapieren": "Misc",
+    "Bardividende korrigiert": "Misc",
+    "Bonusaktien": "Misc",
+    "Erteilt": "Misc",
+    "Jährliche Hauptversammlung": "Misc",
+    "Spin-off": "Misc",
+    "Teilnehmen?": "Misc",
+    "Vorabpauschale": "Misc",
+    "Zwischenvertrieb von Wertpapieren": "Misc",
     "Saveback": "Saveback",
     "Kauforder": "Trades",
+    "Kauforder storniert": "Trades",
     "Limit-Buy-Order": "Trades",
+    "Limit-Buy-Order abgelaufen": "Trades",
+    "Limit-Buy-Order storniert": "Trades",
     "Limit-Sell-Order": "Trades",
     "Limit-Sell-Order abgelaufen": "Trades",
+    "Limit-Sell-Order abgelehnt": "Trades",
     "Limit-Sell-Order erstellt": "Trades",
     "Limit-Sell-Order storniert": "Trades",
     "Limit Verkauf-Order neu abgerechnet": "Trades",
+    "Round up": "RoundUp",
     "Sparplan ausgeführt": "Trades",
+    "Sparplan fehlgeschlagen": "Trades",
     "Stop-Sell-Order": "Trades",
+    "Stop-Sell-Order storniert": "Trades",
     "Verkaufsorder": "Trades",
     "Verkaufsorder abgelehnt": "Trades",
 }
@@ -115,8 +136,9 @@ class DL:
         output_path,
         filename_fmt,
         not_before=float(0),
-        not_after=float(0),
+        not_after=float("inf"),
         store_event_database=True,
+        scan_for_duplicates=False,
         dump_raw_data=False,
         export_transactions=True,
         history_file="pytr_history",
@@ -149,7 +171,14 @@ class DL:
         self.flat = flat
 
         self.tl = Timeline(
-            self.tr, self.output_path, not_before, not_after, store_event_database, dump_raw_data, self.dl_callback
+            self.tr,
+            self.output_path,
+            not_before,
+            not_after,
+            store_event_database,
+            scan_for_duplicates,
+            dump_raw_data,
+            self.dl_callback,
         )
 
         self.session = FuturesSession(max_workers=max_workers, session=self.tr._websession)
@@ -217,7 +246,7 @@ class DL:
             eventType = event.get("eventType", None)
             title = event.get("title", "")
             subtitle = event.get("subtitle", "")
-            eventdesc = f"{title} {subtitle}"
+            eventdesc = f"{title} {subtitle} ({event['id']})"
             sections = event.get("details", {}).get("sections", [{}])
             uebersicht_dict = next(filter(lambda x: x.get("title") in ["Übersicht"], sections), None)
             if eventType in ["timeline_legacy_migrated_events", None]:
@@ -236,7 +265,16 @@ class DL:
             if subfolder is None and sections:
                 for item in sections:
                     ititle = item.get("title")
-                    if ititle == "Du hast eine Kapitalma\u00dfnahme erhalten":
+                    if (
+                        ititle.startswith("Du hast ") and (ititle.endswith(" erhalten") or ititle.endswith(" gesendet"))
+                    ) or (
+                        ititle
+                        in [
+                            "You received an offer to participate in a capital increase",
+                            "Deine Aktien waren von einer Kapitalmaßnahme betroffen",
+                            "Aktien wurden im Rahmen einer Kapitalmaßnahme entfernt",
+                        ]
+                    ):
                         subfolder = "Misc"
                         break
 
