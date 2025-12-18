@@ -220,7 +220,7 @@ class DL:
                 json.dump(self.events_without_docs, f, ensure_ascii=False, indent=2)
 
         if self.export_transactions:
-            with (self.output_path / "account_transactions.csv").open("w", encoding="utf-8") as f:
+            with (self.output_path / f"account_transactions.{self.format_export}").open("w", encoding="utf-8") as f:
                 TransactionExporter(
                     lang=self.lang,
                     date_with_time=self.date_with_time,
