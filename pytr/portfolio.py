@@ -110,17 +110,27 @@ class Portfolio:
 
             await self.tr.unsubscribe(subscription_id)
 
+        # a way to ignore instruments from portfolio
+        # e.g. set to ["US30303M1027"] if you want to exclude Meta Platforms (A)
+        # this should be exposed as a parameter...
+        instruments_to_ignore = []
+
         isins = set()
+        portfolio = list()
         for pos in self.portfolio:
-            isins.add(pos["instrumentId"])
+            if pos["instrumentId"] not in instruments_to_ignore:
+                portfolio.append(pos)
+                isins.add(pos["instrumentId"])
+        self.portfolio = portfolio
 
         # extend portfolio with watchlist elements
         if self.watchlist:
             for pos in self.watchlist:
-                isin = pos["instrumentId"]
-                if isin not in isins:
-                    isins.add(isin)
-                    self.portfolio.append(pos)
+                if pos["instrumentId"] not in instruments_to_ignore:
+                    isin = pos["instrumentId"]
+                    if isin not in isins:
+                        isins.add(isin)
+                        self.portfolio.append(pos)
 
         # Populate name for each ISIN
         subscriptions = {}
@@ -151,7 +161,12 @@ class Portfolio:
 
         self._log.info("Waiting for tickers...")
         while len(subscriptions) > 0:
-            subscription_id, subscription, response = await self.tr.recv()
+            try:
+                subscription_id, subscription, response = await asyncio.wait_for(self.tr.recv(), 5)
+            except asyncio.TimeoutError:
+                print("Timed out waiting for tickers")
+                print(f"Remaining subscriptions: {subscriptions}")
+                break
 
             if subscription["type"] == "ticker":
                 await self.tr.unsubscribe(subscription_id)
@@ -173,12 +188,17 @@ class Portfolio:
             else:
                 print(f"unmatched subscription of type '{subscription['type']}':\n{preview(response)}")
 
-        # sanitize - saw this happen e.g. during capital measures when some instrument is not actively listed
+        # sanitize - it can happen that we get no price, e.g. we ran into a timeout above or some instrument
+        # does not deliver a price. Then we kick it out of the list and log this.
+        portfolionew = []
         for pos in self.portfolio:
             if "price" not in pos:
-                print(f"Missing price for {pos['name']} ({pos['instrumentId']}), setting to 0.")
-                pos["price"] = 0.0
-                pos["netValue"] = Decimal("0.0")
+                print(f"Missing price for {pos['name']} ({pos['instrumentId']}), removing from result.")
+            else:
+                portfolionew.append(pos)
+        self.portfolio = portfolionew
+
+        await self.tr.close()
 
     def _get_sort_func(self):
         if self.sort_by_column:
@@ -192,18 +212,18 @@ class Portfolio:
                         locale.setlocale(locale.LC_COLLATE, "de_DE.UTF-8")
                     return lambda x: locale.strxfrm(x["instrumentId"].lower())
                 case "quantity":
-                    return lambda x: x["netSize"]
+                    return lambda x: Decimal(x["netSize"])
                 case "price":
-                    return lambda x: x["price"]
+                    return lambda x: Decimal(x["price"])
                 case "avgCost":
-                    return lambda x: x["averageBuyIn"]
+                    return lambda x: Decimal(x["averageBuyIn"])
                 case "netValue":
-                    return lambda x: x["netValue"]
+                    return lambda x: Decimal(x["netValue"])
                 case _ as m:
                     print(f"Column {m} does not exist for portfolio list, reverting to default sorting by netValue.")
-                    return lambda x: x["netValue"]
+                    return lambda x: Decimal(x["netValue"])
         else:
-            return lambda x: x["netValue"]
+            return lambda x: Decimal(x["netValue"])
 
     def portfolio_to_csv(self):
         if self.output is None:

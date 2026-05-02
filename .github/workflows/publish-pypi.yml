@@ -24,7 +24,7 @@ jobs:
     steps:
       - uses: actions/checkout@master
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v7
         with:
           version: ${{ env.UV_VERSION }}
           python-version: ${{ matrix.python-version }}
@@ -37,7 +37,7 @@ jobs:
       - name: Mypy type check
         run: uv run mypy .
       - name: Check if README.md automatically generated content is up to date
-        run: diff -u -Z README.md <(uvx mksync@0.1.5 README.md)
+        run: diff -u <(cat README.md | sed -z '$s/\n*$//') <(uvx mksync@0.1.5 README.md | sed -z '$s/\n*$//')
 
   build-n-publish:
     name: Build and publish Python distributions to PyPI
@@ -46,7 +46,7 @@ jobs:
     steps:
       - uses: actions/checkout@master
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v7
         with:
           version: ${{ env.UV_VERSION }}
       - name: Build wheel

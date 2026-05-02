@@ -43,6 +43,7 @@ event_subfolder_mapping = {
     "SHAREBOOKING_TRANSACTIONAL": "Misc",
     "STOCK_PERK_REFUNDED": "Misc",
     "TAX_YEAR_END_REPORT": "Misc",
+    "TAX_YEAR_END_REPORT_CREATED": "Misc",
     "YEAR_END_TAX_REPORT": "Misc",
     "crypto_annual_statement": "Misc",
     "private_markets_suitability_quiz_completed": "Misc",
@@ -67,6 +68,8 @@ event_subfolder_mapping = {
     "ORDER_REJECTED": "Trades",
     "TRADE_CORRECTED": "Trades",
     "TRADE_INVOICE": "Trades",
+    "TRADING_ORDER_CANCELLED": "Trades",
+    "TRADING_ORDER_CREATED": "Trades",
     "private_markets_order_created": "Trades",
     "trading_order_cancelled": "Trades",
     "trading_order_created": "Trades",
@@ -112,6 +115,7 @@ subtitle_subfolder_mapping = {
     "Kauforder storniert": "Trades",
     "Limit-Buy-Order": "Trades",
     "Limit-Buy-Order abgelaufen": "Trades",
+    "Limit-Buy-Order erstellt": "Trades",
     "Limit-Buy-Order storniert": "Trades",
     "Limit-Sell-Order": "Trades",
     "Limit-Sell-Order abgelaufen": "Trades",
@@ -240,8 +244,6 @@ class DL:
             if section["type"] != "documents":
                 continue
 
-            has_docs = True
-
             subfolder = None
             eventType = event.get("eventType", None)
             title = event.get("title", "")
@@ -258,13 +260,13 @@ class DL:
 
             if subfolder is None and uebersicht_dict:
                 for item in uebersicht_dict.get("data", []):
-                    ititle = item.get("title")
+                    ititle = item.get("title", "")
                     if ititle == "Überweisung":
                         subfolder = "Einzahlungen"
 
             if subfolder is None and sections:
                 for item in sections:
-                    ititle = item.get("title")
+                    ititle = item.get("title", "")
                     if (
                         ititle.startswith("Du hast ") and (ititle.endswith(" erhalten") or ititle.endswith(" gesendet"))
                     ) or (
@@ -281,7 +283,13 @@ class DL:
             if subfolder is None:
                 self.log.warning(f"no subfolder mapping for {eventdesc}")
 
-            for doc in section["data"]:
+            for idx, doc in enumerate(section["data"]):
+                if isinstance(doc["action"]["payload"], dict):
+                    self.log.warning(
+                        f'Download of document with new API-Path URL "{doc["action"]["payload"]["path"]}" is not possible. (yet?)'
+                    )
+                    continue
+                has_docs = True
                 timestamp_str = event["timestamp"]
                 if timestamp_str[-3] != ":":
                     timestamp_str = timestamp_str[:-2] + ":" + timestamp_str[-2:]
@@ -291,7 +299,9 @@ class DL:
                     self.log.warning(f"no timestamp parseable from {timestamp_str}")
                     docdate = datetime.now()
 
-                title = f"{doc['title']} - {event['title']} - {event['subtitle']}"
+                suffix = f" - {idx}" if idx > 0 else ""
+                title = f"{doc['title']} - {event['title']} - {event['subtitle']}{suffix}"
+
                 self.dl_doc(doc, title, subfolder, docdate)
 
         if has_docs:
@@ -304,6 +314,8 @@ class DL:
         send asynchronous request, append future with filepath to self.futures
         """
         doc_url = doc["action"]["payload"]
+        if isinstance(doc_url, dict):
+            doc_url = f"https://api.traderepublic.com/{doc_url['path']}"
 
         if self.flat:
             doc_url_base = doc_url.split("?")[0]
